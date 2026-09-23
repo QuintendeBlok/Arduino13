@@ -3,12 +3,19 @@
 #include <SoftwareSerial.h>
 #include <Adafruit_BME280.h>
 
-// Sensor and SD configuration based on Arduino_sensor_OS4P.pdf
+// Sensor and SD configuration
 const int chipSelect = 10;
 #define MH_Z19_RX 6
 #define MH_Z19_TX 7
 const int statusLed = 13;
-const int time_step = 10000; // 10-second intervals for stable CO2 readings
+const int time_step = 10000; // 10-second measurement intervals
+
+// --- NEW TIME LIMIT VARIABLES ---
+// Set your desired experiment duration in milliseconds (e.g., 5 mins = 300,000 ms)
+const unsigned long experimentDuration = 300000; 
+unsigned long startTime;
+bool experimentRunning = true;
+// --------------------------------
 
 SoftwareSerial co2Serial(MH_Z19_RX, MH_Z19_TX);
 byte cmd[] = {0xFF, 0x01, 0x86, 0x00, 0x00, 0x00, 0x00, 0x00, 0x79};
@@ -24,13 +31,11 @@ void setup() {
   Serial.begin(9600);
   pinMode(statusLed, OUTPUT);
 
-  // Initialize SD Card
   if (!SD.begin(chipSelect)) {
     Serial.println("SD FAILED!");
     while (1);
   }
 
-  // Set up CSV with a unified header
   if (!SD.exists("data.csv")) {
     myFile = SD.open("data.csv", FILE_WRITE);
     if (myFile) {
@@ -39,60 +44,70 @@ void setup() {
     }
   }
 
-  // Initialize BME280
   if (!bme.begin(0x76)) {
     Serial.println("BME280 FAILED!");
     while (1);
   }
 
-  // Initialize CO2 Sensor
   co2Serial.begin(9600);
-  Serial.println("System Ready. Open Serial Plotter to view live data.");
+  
+  // Record the exact time the experiment starts
+  startTime = millis(); 
+  Serial.println("System Ready. Experiment started!");
 }
 
 void loop() {
-  if (millis() - lastLogTime >= time_step) {
-    lastLogTime = millis();
-    digitalWrite(statusLed, HIGH);
-
-    // 1. Read environmental data from BME280
-    lastT = bme.readTemperature();
-    lastP = bme.readPressure();
-    lastH = bme.readHumidity();
-
-    // 2. Request and read CO2 data
-    while(co2Serial.available()) { co2Serial.read(); } // Clear buffer
-    co2Serial.write(cmd, 9);
-    delay(150);
+  // 1. Check if the experiment is still allowed to run
+  if (experimentRunning) {
     
-    int availableBytes = co2Serial.available();
-    if (availableBytes >= 9) {
-      for (int i = 0; i < 9; i++) {
-        response[i] = co2Serial.read();
-      }
+    // 2. Check if the total time has exceeded the predetermined duration
+    if (millis() - startTime >= experimentDuration) {
+      experimentRunning = false; // Disable further measurements
+      Serial.println("Experiment complete! The time limit has been reached.");
+      Serial.println("It is now safe to disconnect the power.");
+      return; // Skip the rest of this loop iteration
+    }
+
+    // 3. Normal sensor reading and logging routine (every 10 seconds)
+    if (millis() - lastLogTime >= time_step) {
+      lastLogTime = millis();
+      digitalWrite(statusLed, HIGH);
+
+      lastT = bme.readTemperature();
+      lastP = bme.readPressure();
+      lastH = bme.readHumidity();
+
+      while(co2Serial.available()) { co2Serial.read(); }
+      co2Serial.write(cmd, 9);
+      delay(150);
       
-      if (response[0] == 0xFF && response[1] == 0x86) {
-        int co2ppm = (response[2] << 8) + response[3];
-        int secondsPassed = lineCounter * (time_step / 1000);
+      int availableBytes = co2Serial.available();
+      if (availableBytes >= 9) {
+        for (int i = 0; i < 9; i++) {
+          response[i] = co2Serial.read();
+        }
+        
+        if (response[0] == 0xFF && response[1] == 0x86) {
+          int co2ppm = (response[2] << 8) + response[3];
+          int secondsPassed = lineCounter * (time_step / 1000);
 
-        // 3. Output to Serial Plotter (Variable:Value format separates plot lines)
-        Serial.print("CO2_ppm:"); Serial.print(co2ppm); Serial.print(",");
-        Serial.print("Temp_C:"); Serial.print(lastT); Serial.print(",");
-        Serial.print("Humidity_%:"); Serial.println(lastH);
+          Serial.print("CO2_ppm:"); Serial.print(co2ppm); Serial.print(",");
+          Serial.print("Temp_C:"); Serial.print(lastT); Serial.print(",");
+          Serial.print("Humidity_%:"); Serial.println(lastH);
 
-        // 4. Log combined data to SD Card
-        myFile = SD.open("data.csv", FILE_WRITE);
-        if (myFile) {
-          myFile.print(secondsPassed); myFile.print(",");
-          myFile.print(co2ppm); myFile.print(",");
-          myFile.print(lastT); myFile.print(",");
-          myFile.print(lastP); myFile.print(",");
-          myFile.println(lastH);
-          myFile.close();
-          lineCounter++;
+          myFile = SD.open("data.csv", FILE_WRITE);
+          if (myFile) {
+            myFile.print(secondsPassed); myFile.print(",");
+            myFile.print(co2ppm); myFile.print(",");
+            myFile.print(lastT); myFile.print(",");
+            myFile.print(lastP); myFile.print(",");
+            myFile.println(lastH);
+            myFile.close();
+            lineCounter++;
+          }
         }
       }
+      digitalWrite(statusLed, LOW);
     }
-    digitalWrite(statusLed, LOW);
   }
 }
