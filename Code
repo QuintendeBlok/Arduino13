@@ -1,0 +1,85 @@
+#include <SPI.h>
+#include <SD.h>
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BME280.h>
+#include <Adafruit_CCS811.h>
+
+#define SEALEVELPRESSURE_HPA (1013.25)
+
+Adafruit_BME280 bme;
+Adafruit_CCS811 ccs;
+
+File dataFile;
+
+void setup() {
+  Serial.begin(9600);
+  while (!Serial) {
+    ; // wait for serial port to connect. Needed for native USB port only
+  }
+
+  if (!SD.begin(10)) {
+    Serial.println("SD card initialization failed!");
+    while (1);
+  }
+  Serial.println("SD card initialized.");
+
+  if (!bme.begin()) {
+    Serial.println("Could not find a valid BME280 sensor, check wiring!");
+    while (1);
+  }
+
+  if (!ccs.begin()) {
+    Serial.println("Could not find a valid CCS811 sensor, check wiring!");
+    while (1);
+  }
+
+  ccs.setDriveMode(CCS811_DRIVE_MODE_1SEC);
+}
+
+void loop() {
+  float temperature = bme.readTemperature();
+  float humidity = bme.readHumidity();
+  float pressure = bme.readPressure() / 100.0F;
+  float altitude = bme.readAltitude(SEALEVELPRESSURE_HPA);
+
+  if (!ccs.available()) {
+    Serial.println("CO2 sensor not available!");
+    return;
+  }
+
+  ccs.readData();
+  float co2 = ccs.geteCO2();
+  float tvoc = ccs.getTVOC();
+
+  dataFile = SD.open("data.txt", FILE_WRITE);
+  if (dataFile) {
+    dataFile.print("Temperature: ");
+    dataFile.print(temperature);
+    dataFile.println(" *C");
+    dataFile.print("Humidity: ");
+    dataFile.print(humidity);
+    dataFile.println(" %");
+    dataFile.print("Pressure: ");
+    dataFile.print(pressure);
+    dataFile.println(" hPa");
+    dataFile.print("Altitude: ");
+    dataFile.print(altitude);
+    dataFile.println(" m");
+    dataFile.print("CO2: ");
+    dataFile.print(co2);
+    dataFile.println(" ppm");
+    dataFile.print("TVOC: ");
+    dataFile.print(tvoc);
+    dataFile.println(" ppb");
+    dataFile.close();
+    Serial.println("Data saved to SD card.");
+  } else {
+    Serial.println("Error opening data file.");
+  }
+
+  delay(1000);
+}
+
+// Code for BME280 sensor adapted from Adafruit_BME280 library example code
+// Code for CCS811 sensor adapted from Adafruit_CCS811 library example code
