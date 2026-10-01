@@ -11,8 +11,8 @@ const int statusLed = 13;
 const int time_step = 10000; // 10-second measurement intervals
 
 // --- NEW TIME LIMIT VARIABLES ---
-// Set your desired experiment duration in milliseconds (e.g., 5 mins = 300,000 ms)
-const unsigned long experimentDuration = 300000; 
+// Set your desired experiment duration in milliseconds (e.g., 20 mins = 1200,000 ms)
+const unsigned long experimentDuration = 1200000; 
 unsigned long startTime;
 bool experimentRunning = true;
 // --------------------------------
