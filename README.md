@@ -16,7 +16,6 @@ The structure of the repository is as follows:
 ## Repository Structure
  
 ```
-.
 ├── Code uitlezen sensoren (C++)         # Reads the sensors and writes measurements to the SD card
 ├── Reading the SD card (C++)            # Reads back and prints the data stored on the SD card
 ├── Delet the existing file (C++)        # Deletes an existing file from the SD card before a new run
