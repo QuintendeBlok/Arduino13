@@ -1,4 +1,4 @@
-Welcome to the Arduino repository. Here you will find out how to reproduce our findings reported in the Report {Placeholder}.
+Welcome to the Arduino repository. Here you will find out how to reproduce our findings reported in the Final Report.
 
 ## 📄 Final Report
  
